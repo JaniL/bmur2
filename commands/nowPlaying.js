@@ -5,8 +5,12 @@ const nowPlaying = (bot, lastfm) => msg => {
   } = lastfm.getTracks();
   console.log(nowPlaying);
 
-  const formatTrack = ({ artist, name }) => `${artist["#text"]} - ${name}`;
-  bot.sendMessage(chatId, formatTrack(nowPlaying));
+  const formatTrack = ({ artist, name, url }) =>
+    `[${artist["#text"]} - ${name}](${url})`;
+  bot.sendMessage(chatId, formatTrack(nowPlaying), {
+    parse_mode: "Markdown",
+    disable_web_page_preview: true
+  });
 };
 
 module.exports = nowPlaying;
