@@ -1,13 +1,12 @@
-const nowPlaying = (bot, lastfm) => {
-  let nowPlaying = {};
-  lastfm.on("nowPlaying", track => (nowPlaying = track));
-  lastfm.on("lastPlayed", track => (nowPlaying = track));
-  return msg => {
-    const chatId = msg.chat.id;
-    console.log(track);
-    console.log(chatId);
-    bot.sendMessage(chatId, "asd");
-  };
+const nowPlaying = (bot, lastfm) => msg => {
+  const chatId = msg.chat.id;
+  const {
+    track: [nowPlaying]
+  } = lastfm.getTracks();
+  console.log(nowPlaying);
+
+  const formatTrack = ({ artist, name }) => `${artist["#text"]} - ${name}`;
+  bot.sendMessage(chatId, formatTrack(nowPlaying));
 };
 
 module.exports = nowPlaying;
