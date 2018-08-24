@@ -3,8 +3,10 @@ const recentTracks = (bot, lastfm) => msg => {
 
   const { track: tracks } = lastfm.getTracks();
 
-  const formatTrack = ({ artist, name, url }) =>
-    `- [${artist["#text"]} - ${name}](${url})`;
+  const formatTrack = ({ artist, name, url, date }) =>
+    `- [${artist["#text"]} - ${name}](${url})${
+      date ? ` (${date["#text"]})` : ""
+    }`;
   const formatTracks = tracks => tracks.map(formatTrack).join("\n");
 
   bot.sendMessage(chatId, formatTracks(tracks), {
