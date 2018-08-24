@@ -10,5 +10,5 @@ const { BMUR_TOKEN } = process.env;
 const token = BMUR_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-bot.onText(/^\/np$/, nowPlaying(bot, lastfm));
-bot.onText(/^\/recent$/, recentTracks(bot, lastfm));
+bot.onText(/^\/np/, nowPlaying(bot, lastfm));
+bot.onText(/^\/recent/, recentTracks(bot, lastfm));
