@@ -9,5 +9,8 @@
     "lastfm-njs": "^1.0.0",
     "moment": "^2.22.2",
     "node-telegram-bot-api": "^0.30.0"
+  },
+  "devDependencies": {
+    "prettier": "1.14.2"
   }
 }
