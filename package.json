@@ -1,7 +1,12 @@
 {
   "name": "bmur2",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js"
+  },
   "author": "Jani Luukko",
   "license": "MIT",
   "dependencies": {
@@ -11,7 +16,10 @@
     "node-telegram-bot-api": "^0.67.0"
   },
   "devDependencies": {
-    "prettier": "3.8.1"
+    "@types/node": "^24.5.2",
+    "@types/node-telegram-bot-api": "^0.64.10",
+    "prettier": "3.8.1",
+    "typescript": "^5.9.2"
   },
   "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"
 }
