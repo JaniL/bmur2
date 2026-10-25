@@ -72,3 +72,16 @@ typings/
 
 # Serverless directories
 .serverless
+
+# Go
+vendor/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+infra/*.tfvars
+!infra/terraform.tfvars.example
+
+# Build artifacts
+artifacts/

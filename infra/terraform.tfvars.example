@@ -1,0 +1,12 @@
+project_id     = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+region         = "fr-par"
+namespace_name = "bmur2"
+function_name  = "telegram-webhook"
+runtime        = "go126"
+handler        = "Handle"
+zip_file       = "../artifacts/function.zip"
+memory_limit   = 128
+timeout        = 15
+
+# Do not place real secrets in this file for a public repository.
+# Pass these as TF_VAR_* environment variables in your shell or CI.
