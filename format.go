@@ -9,8 +9,25 @@ import (
 
 var timeNow = time.Now
 
+const reservationStartsLayout = "02.01.2006 15:04"
+
 func FormatTrack(track Track) string {
 	return trackLink(track)
+}
+
+func FormatUpcomingReservations(reservations []Reservation) string {
+	lines := make([]string, len(reservations))
+	for i, reservation := range reservations {
+		lines[i] = "- " + reservationLine(reservation)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func reservationLine(reservation Reservation) string {
+	starts := reservation.Starts.Format(reservationStartsLayout)
+	label := html.EscapeString(strings.TrimSpace(reservation.Name))
+	link := "<a href=\"" + html.EscapeString(reservationLink(reservation)) + "\">" + label + "</a>"
+	return starts + ": " + link + ", " + html.EscapeString(strings.TrimSpace(reservation.Association))
 }
 
 func FormatRecentTracks(tracks []Track) string {

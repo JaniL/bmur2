@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 rm -rf artifacts
 mkdir -p artifacts
 
-source_files=(go.mod go.sum config.go handler.go bot.go lastfm.go format.go)
+source_files=(go.mod go.sum config.go handler.go bot.go lastfm.go format.go reservations.go)
 
 if command -v go >/dev/null 2>&1; then
   go test ./...

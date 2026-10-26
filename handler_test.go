@@ -1,6 +1,7 @@
 package bmur2
 
 import (
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -271,5 +272,144 @@ func TestHandleUnknownCommandIsIgnored(t *testing.T) {
 	}
 	if len(telegram.sent()) != 0 {
 		t.Errorf("telegram requests = %d, want 0", len(telegram.sent()))
+	}
+}
+
+func TestHandleUpcomingReservations(t *testing.T) {
+	resetRuntime(t)
+
+	upcoming := time.Now().Add(2 * time.Hour)
+	page := ilotaloPage(
+		ilotaloRow(helsinkiDate(upcoming, "02.01.2006 15:04:05"), 555, "Matrix-leffailta", "Matrix", "avoin"),
+	)
+	ilotaloSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(page))
+	}))
+	t.Cleanup(ilotaloSrv.Close)
+	ilotaloBaseURL = ilotaloSrv.URL
+
+	telegram := &fakeTelegram{}
+	tgSrv := httptest.NewServer(telegram)
+	t.Cleanup(tgSrv.Close)
+	apiServerURL = tgSrv.URL
+
+	rec := postUpdate(t, "/reservations", "test-secret")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	sent := telegram.sent()
+	if len(sent) != 1 {
+		t.Fatalf("telegram requests = %d, want 1", len(sent))
+	}
+	msg := sent[0]
+	if msg["parse_mode"] != "HTML" {
+		t.Errorf("parse_mode = %q, want %q", msg["parse_mode"], "HTML")
+	}
+	if !strings.Contains(msg["link_preview_options"], "is_disabled") {
+		t.Errorf("link_preview_options = %q, want it to contain is_disabled", msg["link_preview_options"])
+	}
+	text := msg["text"]
+	if !strings.HasPrefix(text, "- "+helsinkiDate(upcoming, "02.01.2006 15:04")+": <a href=") {
+		t.Errorf("text = %q, want it to start with date and link", text)
+	}
+	if !strings.Contains(text, ">Matrix-leffailta</a>, Matrix") {
+		t.Errorf("text = %q, want it to contain name and association", text)
+	}
+	if !strings.Contains(html.UnescapeString(text), ilotaloSrv.URL+"/index.php?page=res&id=555") {
+		t.Errorf("text = %q, want it to contain link with id 555", text)
+	}
+}
+
+func TestHandleUpcomingReservationsWithMentionAndArgs(t *testing.T) {
+	resetRuntime(t)
+
+	upcoming := time.Now().Add(2 * time.Hour)
+	page := ilotaloPage(
+		ilotaloRow(helsinkiDate(upcoming, "02.01.2006 15:04:05"), 556, "Leffailta", "TKO-äly", "avoin"),
+	)
+	ilotaloSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(page))
+	}))
+	t.Cleanup(ilotaloSrv.Close)
+	ilotaloBaseURL = ilotaloSrv.URL
+
+	telegram := &fakeTelegram{}
+	tgSrv := httptest.NewServer(telegram)
+	t.Cleanup(tgSrv.Close)
+	apiServerURL = tgSrv.URL
+
+	rec := postUpdate(t, "/reservations@bmur_bot what's up", "test-secret")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(telegram.sent()) != 1 {
+		t.Fatalf("telegram requests = %d, want 1", len(telegram.sent()))
+	}
+}
+
+func TestHandleUpcomingReservationsEmptyWindow(t *testing.T) {
+	resetRuntime(t)
+
+	past := time.Now().Add(-24 * time.Hour)
+	page := ilotaloPage(
+		ilotaloRow(helsinkiDate(past, "02.01.2006 15:04:05"), 9, "Old kokous", "Matlu", "avoin"),
+	)
+	ilotaloSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(page))
+	}))
+	t.Cleanup(ilotaloSrv.Close)
+	ilotaloBaseURL = ilotaloSrv.URL
+
+	telegram := &fakeTelegram{}
+	tgSrv := httptest.NewServer(telegram)
+	t.Cleanup(tgSrv.Close)
+	apiServerURL = tgSrv.URL
+
+	rec := postUpdate(t, "/reservations", "test-secret")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	sent := telegram.sent()
+	if len(sent) != 1 {
+		t.Fatalf("telegram requests = %d, want 1", len(sent))
+	}
+	if sent[0]["text"] != "No upcoming reservations in the next 3 months." {
+		t.Errorf("text = %q, want empty-window message", sent[0]["text"])
+	}
+	if _, ok := sent[0]["parse_mode"]; ok {
+		t.Errorf("parse_mode = %q, want it absent for plain messages", sent[0]["parse_mode"])
+	}
+}
+
+func TestHandleUpcomingReservationsFailureSendsFallback(t *testing.T) {
+	resetRuntime(t)
+
+	ilotaloSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(ilotaloSrv.Close)
+	ilotaloBaseURL = ilotaloSrv.URL
+
+	telegram := &fakeTelegram{}
+	tgSrv := httptest.NewServer(telegram)
+	t.Cleanup(tgSrv.Close)
+	apiServerURL = tgSrv.URL
+
+	rec := postUpdate(t, "/reservations", "test-secret")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	sent := telegram.sent()
+	if len(sent) != 1 {
+		t.Fatalf("telegram requests = %d, want 1", len(sent))
+	}
+	if sent[0]["text"] != "Could not fetch reservations right now." {
+		t.Errorf("text = %q, want fallback message", sent[0]["text"])
+	}
+	if _, ok := sent[0]["parse_mode"]; ok {
+		t.Errorf("parse_mode = %q, want it absent for plain messages", sent[0]["parse_mode"])
 	}
 }

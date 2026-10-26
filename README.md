@@ -1,19 +1,21 @@
 # bmur2
 
-Telegram bot that shows your Last.fm now playing and recent tracks. Rewritten in Go, deployed as a Scaleway Serverless Function that Telegram calls over a webhook. No polling, no background loops: the function only runs when someone sends the bot a command.
+Telegram bot that shows your Last.fm now playing and recent tracks, plus upcoming Christina Regina (ilotalo) reservations. Rewritten in Go, deployed as a Scaleway Serverless Function that Telegram calls over a webhook. No polling, no background loops: the function only runs when someone sends the bot a command.
 
 ## Commands
 
 - `/np` -> current track
 - `/recent` -> recent tracks
+- `/reservations` -> upcoming ilotalo reservations for the next 3 months (max 15, links to the calendar)
 
-Both also work with a bot mention (`/np@botname`) and trailing arguments.
+All also work with a bot mention (`/np@botname`) and trailing arguments.
 
 ## Architecture
 
 - Telegram -> HTTPS webhook -> Scaleway Function (`go126` runtime, public endpoint)
 - Function validates `X-Telegram-Bot-Api-Secret-Token` (constant-time compare)
 - Function fetches Last.fm data on demand (`user.getrecenttracks`, API key only)
+- Function scrapes the ilotalo reservation calendar on demand (`ilotalo.matlu.fi`, table parsed with `golang.org/x/net/html`)
 - Function replies through the Telegram Bot API (`sendMessage`, HTML parse mode)
 
 Requests without the correct secret header are rejected with 401 before any bot
@@ -24,8 +26,9 @@ work happens. Unknown updates are ACKed with 200 so Telegram does not redeliver 
 ```
 config.go           # required environment variables
 handler.go          # exported Handle(w, r) - the Scaleway entrypoint
-bot.go              # bot init, /np and /recent handlers, telegram sends
+bot.go              # bot init, /np, /recent and /reservations handlers, telegram sends
 lastfm.go           # Last.fm REST client
+reservations.go     # ilotalo calendar scraper (fetch + HTML table parser + upcoming filter)
 format.go           # HTML formatting, relative "x hours ago" dates
 cmd/devserver/      # local webhook server for manual testing
 scripts/package.sh  # builds artifacts/function.zip for deployment
@@ -72,7 +75,7 @@ scripts/package.sh
 
 The script runs tests, `go mod tidy`, `go mod vendor`, and zips the sources plus
 `vendor/` into `artifacts/function.zip`. If Go is not installed it zips sources only;
-Scaleway then fetches the single dependency itself at build time.
+Scaleway then fetches the dependencies itself at build time.
 
 ### 2) Configure credentials
 
@@ -135,7 +138,7 @@ curl -X POST "https://api.telegram.org/bot${TF_VAR_bmur_token}/setWebhook" \
 curl "https://api.telegram.org/bot${TF_VAR_bmur_token}/getWebhookInfo"
 ```
 
-- Send `/np` and `/recent` to the bot in Telegram.
+- Send `/np`, `/recent` and `/reservations` to the bot in Telegram.
 - Check function logs in the Scaleway console (Cockpit) if something fails.
 - Confirm the endpoint rejects requests without the secret header:
 
@@ -149,3 +152,9 @@ curl -i -X POST "$(terraform output -raw webhook_url)" -d '{}'
 - Updating the runtime later only requires changing `runtime` (e.g. `go126` -> newer) and redeploying.
 - The previous TypeScript implementation is preserved on the `archive/ts-serverless-refactor` branch.
 - If tokens rotate, re-apply Terraform with updated `TF_VAR_*` values and re-register the webhook when the webhook secret changes.
+- The ilotalo server serves an expired certificate on some TLS code paths; the reservations client pins
+  `MaxVersion: tls.VersionTLS12` with Go's default cipher suites, which currently negotiates the valid
+  Let's Encrypt certificate. If `/reservations` starts failing with certificate errors, the ilotalo TLS
+  setup has changed and that pin should be revisited.
+- The old bmur-reservation-api is dead; the bot scrapes ilotalo directly. The calendar markup is tag-soup
+  (rows without `</tr>`, unquoted attributes, raw `&` in hrefs), which the tokenizer-based parser tolerates.

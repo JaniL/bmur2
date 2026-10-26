@@ -2,6 +2,7 @@ package bmur2
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -44,6 +45,7 @@ func getBot() (*tgbot.Bot, error) {
 
 		b.RegisterHandlerRegexp(tgbot.HandlerTypeMessageText, regexp.MustCompile(`^/np(@\S+)?(\s|$)`), nowPlayingHandler)
 		b.RegisterHandlerRegexp(tgbot.HandlerTypeMessageText, regexp.MustCompile(`^/recent(@\S+)?(\s|$)`), recentTracksHandler)
+		b.RegisterHandlerRegexp(tgbot.HandlerTypeMessageText, regexp.MustCompile(`^/reservations(@\S+)?(\s|$)`), upcomingReservationsHandler)
 
 		bot = b
 	})
@@ -84,6 +86,24 @@ func recentTracksHandler(ctx context.Context, b *tgbot.Bot, update *models.Updat
 		return
 	}
 	sendHTMLMessage(ctx, b, msg.Chat.ID, FormatRecentTracks(tracks))
+}
+
+func upcomingReservationsHandler(ctx context.Context, b *tgbot.Bot, update *models.Update) {
+	msg := update.Message
+	if msg == nil {
+		return
+	}
+	reservations, err := NewIlotaloClient().UpcomingReservations(ctx)
+	if err != nil {
+		log.Printf("reservations: ilotalo error: %v", err)
+		sendMessage(ctx, b, msg.Chat.ID, "Could not fetch reservations right now.")
+		return
+	}
+	if len(reservations) == 0 {
+		sendMessage(ctx, b, msg.Chat.ID, fmt.Sprintf("No upcoming reservations in the next %d months.", upcomingWindowMonths))
+		return
+	}
+	sendHTMLMessage(ctx, b, msg.Chat.ID, FormatUpcomingReservations(reservations))
 }
 
 func lastfmClient() *LastfmClient {
