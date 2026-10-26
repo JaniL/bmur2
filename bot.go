@@ -57,6 +57,7 @@ func nowPlayingHandler(ctx context.Context, b *tgbot.Bot, update *models.Update)
 	if msg == nil {
 		return
 	}
+	showTyping(ctx, b, msg.Chat.ID)
 	track, err := lastfmClient().LatestTrack(ctx)
 	if err != nil {
 		log.Printf("np: lastfm error: %v", err)
@@ -75,6 +76,7 @@ func recentTracksHandler(ctx context.Context, b *tgbot.Bot, update *models.Updat
 	if msg == nil {
 		return
 	}
+	showTyping(ctx, b, msg.Chat.ID)
 	tracks, err := lastfmClient().RecentTracks(ctx, 15)
 	if err != nil {
 		log.Printf("recent: lastfm error: %v", err)
@@ -93,6 +95,7 @@ func upcomingReservationsHandler(ctx context.Context, b *tgbot.Bot, update *mode
 	if msg == nil {
 		return
 	}
+	showTyping(ctx, b, msg.Chat.ID)
 	reservations, err := NewIlotaloClient().UpcomingReservations(ctx)
 	if err != nil {
 		log.Printf("reservations: ilotalo error: %v", err)
@@ -130,5 +133,15 @@ func sendHTMLMessage(ctx context.Context, b *tgbot.Bot, chatID int64, text strin
 	}
 	if _, err := b.SendMessage(ctx, params); err != nil {
 		log.Printf("send html message to chat %d: %v", chatID, err)
+	}
+}
+
+func showTyping(ctx context.Context, b *tgbot.Bot, chatID int64) {
+	params := &tgbot.SendChatActionParams{
+		ChatID: chatID,
+		Action: models.ChatActionTyping,
+	}
+	if _, err := b.SendChatAction(ctx, params); err != nil {
+		log.Printf("send typing to chat %d: %v", chatID, err)
 	}
 }

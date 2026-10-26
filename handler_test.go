@@ -53,6 +53,17 @@ func (f *fakeTelegram) sent() []map[string]string {
 	return out
 }
 
+func (f *fakeTelegram) sentMessages() []map[string]string {
+	all := f.sent()
+	messages := make([]map[string]string, 0, len(all))
+	for _, fields := range all {
+		if _, ok := fields["text"]; ok {
+			messages = append(messages, fields)
+		}
+	}
+	return messages
+}
+
 func telegramUpdate(text string) string {
 	return `{"update_id":1,"message":{"message_id":10,"from":{"id":42,"is_bot":false,"first_name":"Test"},"chat":{"id":123,"type":"private"},"date":1700000000,"text":"` + text + `"}}`
 }
@@ -142,9 +153,9 @@ func TestHandleNowPlaying(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	sent := telegram.sent()
+	sent := telegram.sentMessages()
 	if len(sent) != 1 {
-		t.Fatalf("telegram requests = %d, want 1", len(sent))
+		t.Fatalf("telegram messages = %d, want 1", len(sent))
 	}
 	msg := sent[0]
 	if msg["chat_id"] != "123" {
@@ -180,8 +191,42 @@ func TestHandleNowPlayingWithMentionAndArgs(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if len(telegram.sent()) != 1 {
-		t.Fatalf("telegram requests = %d, want 1", len(telegram.sent()))
+	if len(telegram.sentMessages()) != 1 {
+		t.Fatalf("telegram messages = %d, want 1", len(telegram.sentMessages()))
+	}
+}
+
+func TestHandleNowPlayingShowsTyping(t *testing.T) {
+	resetRuntime(t)
+
+	lastfmSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"recenttracks":{"track":[{"artist":{"#text":"Artist A"},"name":"Song A","url":"https://example.com/a","@attr":{"now_playing":"true"}}]}}`))
+	}))
+	t.Cleanup(lastfmSrv.Close)
+	lastfmBaseURL = lastfmSrv.URL
+
+	telegram := &fakeTelegram{}
+	tgSrv := httptest.NewServer(telegram)
+	t.Cleanup(tgSrv.Close)
+	apiServerURL = tgSrv.URL
+
+	rec := postUpdate(t, "/np", "test-secret")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	sent := telegram.sent()
+	if len(sent) != 2 {
+		t.Fatalf("telegram requests = %d, want 2 (typing + message)", len(sent))
+	}
+	if sent[0]["action"] != "typing" {
+		t.Errorf("first request action = %q, want %q", sent[0]["action"], "typing")
+	}
+	if sent[0]["chat_id"] != "123" {
+		t.Errorf("typing chat_id = %q, want %q", sent[0]["chat_id"], "123")
+	}
+	if _, ok := sent[1]["text"]; !ok {
+		t.Errorf("second request = %+v, want it to be the message", sent[1])
 	}
 }
 
@@ -213,9 +258,9 @@ func TestHandleRecentTracks(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	sent := telegram.sent()
+	sent := telegram.sentMessages()
 	if len(sent) != 1 {
-		t.Fatalf("telegram requests = %d, want 1", len(sent))
+		t.Fatalf("telegram messages = %d, want 1", len(sent))
 	}
 	want := "- <a href=\"https://example.com/a\">Artist A - Song A</a> (3 hours ago)\n" +
 		"- <a href=\"https://example.com/b\">Artist B - Song B</a> (2 days ago)"
@@ -246,9 +291,9 @@ func TestHandleLastfmFailureSendsFallback(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	sent := telegram.sent()
+	sent := telegram.sentMessages()
 	if len(sent) != 1 {
-		t.Fatalf("telegram requests = %d, want 1", len(sent))
+		t.Fatalf("telegram messages = %d, want 1", len(sent))
 	}
 	if sent[0]["text"] != "Could not fetch current track right now." {
 		t.Errorf("text = %q, want fallback message", sent[0]["text"])
@@ -298,9 +343,9 @@ func TestHandleUpcomingReservations(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	sent := telegram.sent()
+	sent := telegram.sentMessages()
 	if len(sent) != 1 {
-		t.Fatalf("telegram requests = %d, want 1", len(sent))
+		t.Fatalf("telegram messages = %d, want 1", len(sent))
 	}
 	msg := sent[0]
 	if msg["parse_mode"] != "HTML" {
@@ -343,8 +388,8 @@ func TestHandleUpcomingReservationsWithMentionAndArgs(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if len(telegram.sent()) != 1 {
-		t.Fatalf("telegram requests = %d, want 1", len(telegram.sent()))
+	if len(telegram.sentMessages()) != 1 {
+		t.Fatalf("telegram messages = %d, want 1", len(telegram.sentMessages()))
 	}
 }
 
@@ -371,9 +416,9 @@ func TestHandleUpcomingReservationsEmptyWindow(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	sent := telegram.sent()
+	sent := telegram.sentMessages()
 	if len(sent) != 1 {
-		t.Fatalf("telegram requests = %d, want 1", len(sent))
+		t.Fatalf("telegram messages = %d, want 1", len(sent))
 	}
 	if sent[0]["text"] != "No upcoming reservations in the next 3 months." {
 		t.Errorf("text = %q, want empty-window message", sent[0]["text"])
@@ -402,9 +447,9 @@ func TestHandleUpcomingReservationsFailureSendsFallback(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	sent := telegram.sent()
+	sent := telegram.sentMessages()
 	if len(sent) != 1 {
-		t.Fatalf("telegram requests = %d, want 1", len(sent))
+		t.Fatalf("telegram messages = %d, want 1", len(sent))
 	}
 	if sent[0]["text"] != "Could not fetch reservations right now." {
 		t.Errorf("text = %q, want fallback message", sent[0]["text"])

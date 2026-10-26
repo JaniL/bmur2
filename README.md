@@ -16,6 +16,7 @@ All also work with a bot mention (`/np@botname`) and trailing arguments.
 - Function validates `X-Telegram-Bot-Api-Secret-Token` (constant-time compare)
 - Function fetches Last.fm data on demand (`user.getrecenttracks`, API key only)
 - Function scrapes the ilotalo reservation calendar on demand (`ilotalo.matlu.fi`, table parsed with `golang.org/x/net/html`)
+- Function shows a typing indicator (`sendChatAction`) in the chat while fetching
 - Function replies through the Telegram Bot API (`sendMessage`, HTML parse mode)
 
 Requests without the correct secret header are rejected with 401 before any bot
